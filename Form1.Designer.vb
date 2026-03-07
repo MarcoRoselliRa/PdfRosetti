@@ -25,24 +25,26 @@ Partial Class Form1
         txtPdfPath = New TextBox()
         dgvReport = New DataGridView()
         picPreview = New PictureBox()
-        picOcr = New PictureBox()
+        prbLoad = New ProgressBarConTesto()
+        dgvTotali = New DataGridView()
+        btnAggiungiBookmark = New Button()
         CType(dgvReport, ComponentModel.ISupportInitialize).BeginInit()
         CType(picPreview, ComponentModel.ISupportInitialize).BeginInit()
-        CType(picOcr, ComponentModel.ISupportInitialize).BeginInit()
+        CType(dgvTotali, ComponentModel.ISupportInitialize).BeginInit()
         SuspendLayout()
         ' 
         ' txtPdfPath
         ' 
-        txtPdfPath.Location = New Point(66, 22)
+        txtPdfPath.Location = New Point(28, 32)
         txtPdfPath.Name = "txtPdfPath"
         txtPdfPath.ReadOnly = True
-        txtPdfPath.Size = New Size(1144, 39)
+        txtPdfPath.Size = New Size(1163, 39)
         txtPdfPath.TabIndex = 0
         ' 
         ' dgvReport
         ' 
         dgvReport.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        dgvReport.Location = New Point(67, 104)
+        dgvReport.Location = New Point(29, 114)
         dgvReport.Name = "dgvReport"
         dgvReport.RowHeadersWidth = 82
         dgvReport.Size = New Size(1162, 1124)
@@ -51,38 +53,57 @@ Partial Class Form1
         ' picPreview
         ' 
         picPreview.BorderStyle = BorderStyle.FixedSingle
-        picPreview.Location = New Point(1258, 104)
+        picPreview.Location = New Point(1220, 114)
         picPreview.Name = "picPreview"
-        picPreview.Size = New Size(709, 556)
+        picPreview.Size = New Size(577, 701)
         picPreview.SizeMode = PictureBoxSizeMode.Zoom
         picPreview.TabIndex = 2
         picPreview.TabStop = False
         ' 
-        ' picOcr
+        ' prbLoad
         ' 
-        picOcr.BorderStyle = BorderStyle.FixedSingle
-        picOcr.Location = New Point(1258, 672)
-        picOcr.Name = "picOcr"
-        picOcr.Size = New Size(709, 556)
-        picOcr.SizeMode = PictureBoxSizeMode.Zoom
-        picOcr.TabIndex = 3
-        picOcr.TabStop = False
+        prbLoad.Location = New Point(1220, 32)
+        prbLoad.Name = "prbLoad"
+        prbLoad.Size = New Size(577, 42)
+        prbLoad.TabIndex = 4
+        prbLoad.Testo = ""
+        ' 
+        ' dgvTotali
+        ' 
+        dgvTotali.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
+        dgvTotali.Location = New Point(1220, 844)
+        dgvTotali.Name = "dgvTotali"
+        dgvTotali.RowHeadersWidth = 82
+        dgvTotali.Size = New Size(577, 293)
+        dgvTotali.TabIndex = 5
+        ' 
+        ' btnAggiungiBookmark
+        ' 
+        btnAggiungiBookmark.AutoSize = True
+        btnAggiungiBookmark.Location = New Point(1220, 1167)
+        btnAggiungiBookmark.Name = "btnAggiungiBookmark"
+        btnAggiungiBookmark.Size = New Size(312, 71)
+        btnAggiungiBookmark.TabIndex = 6
+        btnAggiungiBookmark.Text = "Salvo Pdf con Divisori"
+        btnAggiungiBookmark.UseVisualStyleBackColor = True
         ' 
         ' Form1
         ' 
         AllowDrop = True
-        AutoScaleDimensions = New SizeF(13F, 32F)
+        AutoScaleDimensions = New SizeF(13.0F, 32.0F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(1979, 1250)
-        Controls.Add(picOcr)
+        ClientSize = New Size(1828, 1267)
+        Controls.Add(btnAggiungiBookmark)
+        Controls.Add(dgvTotali)
+        Controls.Add(prbLoad)
         Controls.Add(picPreview)
         Controls.Add(dgvReport)
         Controls.Add(txtPdfPath)
         Name = "Form1"
-        Text = "Form1"
+        Text = "PdfConteggio Rosetti"
         CType(dgvReport, ComponentModel.ISupportInitialize).EndInit()
         CType(picPreview, ComponentModel.ISupportInitialize).EndInit()
-        CType(picOcr, ComponentModel.ISupportInitialize).EndInit()
+        CType(dgvTotali, ComponentModel.ISupportInitialize).EndInit()
         ResumeLayout(False)
         PerformLayout()
     End Sub
@@ -90,6 +111,8 @@ Partial Class Form1
     Friend WithEvents txtPdfPath As TextBox
     Friend WithEvents dgvReport As DataGridView
     Friend WithEvents picPreview As PictureBox
-    Friend WithEvents picOcr As PictureBox
+    Friend WithEvents prbLoad As ProgressBarConTesto
+    Friend WithEvents dgvTotali As DataGridView
+    Friend WithEvents btnAggiungiBookmark As Button
 
 End Class
