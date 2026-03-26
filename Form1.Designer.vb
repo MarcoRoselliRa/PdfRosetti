@@ -28,6 +28,9 @@ Partial Class Form1
         prbLoad = New ProgressBarConTesto()
         dgvTotali = New DataGridView()
         btnAggiungiBookmark = New Button()
+        btnGeneraXpif = New Button()
+        btnSfogliaIndice = New Button()
+        txtIndicePath = New TextBox()
         CType(dgvReport, ComponentModel.ISupportInitialize).BeginInit()
         CType(picPreview, ComponentModel.ISupportInitialize).BeginInit()
         CType(dgvTotali, ComponentModel.ISupportInitialize).BeginInit()
@@ -38,7 +41,7 @@ Partial Class Form1
         txtPdfPath.Location = New Point(28, 32)
         txtPdfPath.Name = "txtPdfPath"
         txtPdfPath.ReadOnly = True
-        txtPdfPath.Size = New Size(1163, 39)
+        txtPdfPath.Size = New Size(348, 39)
         txtPdfPath.TabIndex = 0
         ' 
         ' dgvReport
@@ -87,12 +90,40 @@ Partial Class Form1
         btnAggiungiBookmark.Text = "Salvo Pdf con Divisori"
         btnAggiungiBookmark.UseVisualStyleBackColor = True
         ' 
+        ' btnGeneraXpif
+        ' 
+        btnGeneraXpif.Location = New Point(1578, 1183)
+        btnGeneraXpif.Name = "btnGeneraXpif"
+        btnGeneraXpif.Size = New Size(160, 49)
+        btnGeneraXpif.TabIndex = 7
+        btnGeneraXpif.Text = "Button1"
+        btnGeneraXpif.UseVisualStyleBackColor = True
+        ' 
+        ' btnSfogliaIndice
+        ' 
+        btnSfogliaIndice.Location = New Point(1029, 32)
+        btnSfogliaIndice.Name = "btnSfogliaIndice"
+        btnSfogliaIndice.Size = New Size(114, 42)
+        btnSfogliaIndice.TabIndex = 8
+        btnSfogliaIndice.Text = "Sfoglia"
+        btnSfogliaIndice.UseVisualStyleBackColor = True
+        ' 
+        ' txtIndicePath
+        ' 
+        txtIndicePath.Location = New Point(645, 38)
+        txtIndicePath.Name = "txtIndicePath"
+        txtIndicePath.Size = New Size(260, 39)
+        txtIndicePath.TabIndex = 9
+        ' 
         ' Form1
         ' 
         AllowDrop = True
         AutoScaleDimensions = New SizeF(13.0F, 32.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1828, 1267)
+        Controls.Add(txtIndicePath)
+        Controls.Add(btnSfogliaIndice)
+        Controls.Add(btnGeneraXpif)
         Controls.Add(btnAggiungiBookmark)
         Controls.Add(dgvTotali)
         Controls.Add(prbLoad)
@@ -114,5 +145,8 @@ Partial Class Form1
     Friend WithEvents prbLoad As ProgressBarConTesto
     Friend WithEvents dgvTotali As DataGridView
     Friend WithEvents btnAggiungiBookmark As Button
+    Friend WithEvents btnGeneraXpif As Button
+    Friend WithEvents btnSfogliaIndice As Button
+    Friend WithEvents txtIndicePath As TextBox
 
 End Class

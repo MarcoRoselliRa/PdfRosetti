@@ -2,6 +2,7 @@ Imports System.IO
 Imports System.Drawing.Imaging
 Imports PdfiumViewer
 Imports iText.Kernel.Pdf
+Imports iText.Kernel.Pdf.Outlines
 
 Imports PdfiumDoc = PdfiumViewer.PdfDocument
 Imports ITextPdfDoc = iText.Kernel.Pdf.PdfDocument
@@ -11,6 +12,7 @@ Public Class Form1
     Private PdfPath As String = ""
     Private CurrentPdf As PdfiumDoc = Nothing
     Private CurrentPreviewBmp As Bitmap = Nothing
+    Private _indiceBookmark As List(Of (Numero As String, Descrizione As String))
 
     ' Tolleranza in mm per il riconoscimento formato pagina
     Private Const FORMAT_TOLERANCE_MM As Double = 5.0
@@ -211,6 +213,7 @@ Public Class Form1
 
         Dim totale As Integer = CurrentPdf.PageCount
         AggiornaTesto(0, totale)
+        Dim indiceLocale = _indiceBookmark
 
         Await Task.Run(Sub()
 
@@ -239,8 +242,8 @@ Public Class Form1
                             ' Analisi divisorio
                             Dim blackBox = FindBlackDividerBox(bmp)
                             If blackBox.HasValue Then
-                                Dim numero As String = ReadDividerNumber(bmp, blackBox.Value)
-                                risultatoDivisorio = If(numero <> "", numero, "DIV")
+                                               Dim numero As String = ReadDividerNumber(bmp, blackBox.Value, indiceLocale)
+                                               risultatoDivisorio = If(numero <> "", numero, "DIV")
                             End If
 
                         End Using
@@ -427,7 +430,7 @@ Public Class Form1
     ''' Soglia: almeno 98% di pixel con luminosità > 200.
     ''' </summary>
     Private Function PaginaPrevalentementeBianca(bmp As Bitmap) As Boolean
-        Dim checkW As Integer = CInt(bmp.Width * 0.78)
+        Dim checkW As Integer = CInt(bmp.Width * 0.72)
         Dim totalPixels As Integer = 0
         Dim whitePixels As Integer = 0
 
@@ -459,22 +462,25 @@ Public Class Form1
 
         If Not PaginaPrevalentementeBianca(bmp) Then Return Nothing
 
-        Dim roiX As Integer = CInt(bmp.Width * 0.8)
-        Dim roiW As Integer = CInt(bmp.Width * 0.18)
+        ' Il tab è negli ultimi 5mm su 210mm = ultimo ~2.4% della larghezza
+        ' Usiamo l'ultimo 8% per sicurezza
+        Dim roiX As Integer = CInt(bmp.Width * 0.92)
+        Dim roiW As Integer = bmp.Width - roiX
         If roiX < 0 Then roiX = 0
         If roiX >= bmp.Width Then Return Nothing
-        If roiX + roiW > bmp.Width Then roiW = bmp.Width - roiX
         If roiW <= 0 Then Return Nothing
 
-        Dim winH As Integer = Math.Max(60, CInt(bmp.Height * 0.08))
+        ' Scansiona tutta l'altezza cercando la finestra con più pixel scuri
+        ' Il tab è 30mm su 297mm = ~10% dell'altezza
+        Dim winH As Integer = Math.Max(40, CInt(bmp.Height * 0.1))
         Dim bestY As Integer = -1
         Dim bestRatio As Double = 0
 
-        For y As Integer = 0 To Math.Max(0, bmp.Height - winH) Step 6
+        For y As Integer = 0 To Math.Max(0, bmp.Height - winH) Step 4
             Dim darkCount As Integer = 0
             Dim total As Integer = 0
             For yy As Integer = y To Math.Min(y + winH - 1, bmp.Height - 1) Step 2
-                For xx As Integer = roiX To Math.Min(roiX + roiW - 1, bmp.Width - 1) Step 2
+                For xx As Integer = roiX To bmp.Width - 1 Step 1
                     Dim c As Color = bmp.GetPixel(xx, yy)
                     Dim lum As Integer = (CInt(c.R) + CInt(c.G) + CInt(c.B)) \ 3
                     If lum < 110 Then darkCount += 1
@@ -490,8 +496,10 @@ Public Class Form1
             End If
         Next
 
-        If bestY < 0 OrElse bestRatio <= 0.18 Then Return Nothing
+        ' Soglia bassa perché il tab è piccolo
+        If bestY < 0 OrElse bestRatio <= 0.05 Then Return Nothing
 
+        ' Bounding box preciso
         Dim minX As Integer = bmp.Width
         Dim maxX As Integer = 0
         Dim minY As Integer = bmp.Height
@@ -499,7 +507,7 @@ Public Class Form1
         Dim found As Boolean = False
 
         For y As Integer = bestY To Math.Min(bestY + winH - 1, bmp.Height - 1)
-            For x As Integer = roiX To Math.Min(roiX + roiW - 1, bmp.Width - 1)
+            For x As Integer = roiX To bmp.Width - 1
                 Dim c As Color = bmp.GetPixel(x, y)
                 Dim lum As Integer = (CInt(c.R) + CInt(c.G) + CInt(c.B)) \ 3
                 If lum < 90 Then
@@ -541,7 +549,7 @@ Public Class Form1
             yBottom += 1
         End While
 
-        Dim pad As Integer = 6
+        Dim pad As Integer = 4
         Dim rx As Integer = Math.Max(0, minX - pad)
         Dim ry As Integer = Math.Max(0, yTop - pad)
         Dim rw As Integer = Math.Min(bmp.Width - rx, (maxX - minX + 1) + pad * 2)
@@ -570,7 +578,8 @@ Public Class Form1
     ''' Applica Rotate90 (rotazione corretta per questi PDF), prepara l'immagine
     ''' e la passa a Tesseract. Restituisce il numero (1-99) o stringa vuota.
     ''' </summary>
-    Private Function ReadDividerNumber(pageBmp As Bitmap, rect As Rectangle) As String
+    Private Function ReadDividerNumber(pageBmp As Bitmap, rect As Rectangle,
+                                   Optional indice As List(Of (Numero As String, Descrizione As String)) = Nothing) As String
         Using crop As Bitmap = CropBitmap(pageBmp, rect)
             Dim rotated As Bitmap = CType(crop.Clone(), Bitmap)
             rotated.RotateFlip(RotateFlipType.Rotate90FlipNone)
@@ -582,16 +591,94 @@ Public Class Form1
                 Dim conf As Single = 0.0F
                 RunTesseractMultiMode(prep, res, conf)
 
-                If res <> "" Then
-                    Dim n As Integer
-                    If Integer.TryParse(res, n) Then
-                        If n >= 1 AndAlso n <= 99 Then Return n.ToString()
+                If res <> "" AndAlso res.Any(Function(c) Char.IsDigit(c)) Then
+                    If indice IsNot Nothing AndAlso indice.Count > 0 Then
+                        Return TrovaCorrispondenzaMigliore(res, indice)
                     End If
+                    Return res
                 End If
             End Using
         End Using
 
         Return ""
+    End Function
+
+    Private Function TrovaCorrispondenzaMigliore(ocrResult As String,
+                                              indice As List(Of (Numero As String, Descrizione As String))) As String
+        ' Prima prova: corrispondenza esatta
+        For Each voce In indice
+            If voce.Numero = ocrResult Then Return voce.Numero
+        Next
+
+        ' Estrai cifre dall'OCR
+        Dim ocrDigits = New String(ocrResult.Where(Function(c) Char.IsDigit(c)).ToArray())
+        Dim ocrDigitsAlt = ocrDigits.Replace("4"c, "1"c)  ' correzione 4→1
+
+        Debug.WriteLine($"OCR letto: '{ocrResult}'  cifre: '{ocrDigits}'")
+
+        Dim bestMatch As String = ""
+        Dim bestScore As Integer = 999
+
+        For Each voce In indice
+            Dim indiceDigits = New String(voce.Numero.Where(Function(c) Char.IsDigit(c)).ToArray())
+
+            Debug.WriteLine($"  confronto con: '{voce.Numero}'  cifre: '{indiceDigits}'")
+
+            If indiceDigits = ocrDigits Then
+                ' Corrispondenza esatta sulle cifre
+                Dim lenDiff = Math.Abs(voce.Numero.Length - ocrResult.Length)
+                Dim score = lenDiff
+                If score < bestScore Then
+                    bestScore = score
+                    bestMatch = voce.Numero
+                End If
+            Else
+                Dim dist = LevenshteinDistance(ocrDigits, indiceDigits)
+                ' Usa la versione alt (4→1) solo se la distanza normale è > 1
+                ' così non disturba i casi dove il 4 è corretto
+                Dim distAlt = If(dist > 1, LevenshteinDistance(ocrDigitsAlt, indiceDigits), dist)
+                Dim bestDist = Math.Min(dist, distAlt)
+                Debug.WriteLine($"    Levenshtein '{ocrDigits}' vs '{indiceDigits}' = {dist}  alt={distAlt}")
+
+                ' Soglia 2 per numeri corti, 3 per numeri lunghi (4+ cifre)
+                Dim soglia = If(indiceDigits.Length >= 4, 3, 2)
+
+                If bestDist <= soglia Then
+                    Dim lenDiff = Math.Abs(ocrDigits.Length - indiceDigits.Length)
+                    Dim score = bestDist * 10 + lenDiff
+                    If score < bestScore Then
+                        bestScore = score
+                        bestMatch = voce.Numero
+                    End If
+                End If
+            End If
+        Next
+
+        Return If(bestMatch <> "", bestMatch, ocrResult)
+    End Function
+
+    Private Function LevenshteinDistance(s As String, t As String) As Integer
+        Dim n = s.Length
+        Dim m = t.Length
+        Dim d(n, m) As Integer
+
+        If n = 0 Then Return m
+        If m = 0 Then Return n
+
+        For i = 0 To n : d(i, 0) = i : Next
+        For j = 0 To m : d(0, j) = j : Next
+
+        For j = 1 To m
+            For i = 1 To n
+                Dim cost = If(s(i - 1) = t(j - 1), 0, 1)
+                d(i, j) = Math.Min(Math.Min(
+                d(i - 1, j) + 1,
+                d(i, j - 1) + 1),
+                d(i - 1, j - 1) + cost)
+            Next
+        Next
+
+        Return d(n, m)
     End Function
 
     ''' <summary>
@@ -702,36 +789,49 @@ Public Class Form1
         confidence = 0.0F
 
         Dim tempFile As String = Path.Combine(Path.GetTempPath(),
-                                              "div_" & Guid.NewGuid().ToString("N") & ".png")
+                                          "div_" & Guid.NewGuid().ToString("N") & ".png")
         Try
             bmp.Save(tempFile, Imaging.ImageFormat.Png)
 
             Using engine As New Tesseract.TesseractEngine("./tessdata", "eng",
-                                                           Tesseract.EngineMode.Default)
-                engine.SetVariable("tessedit_char_whitelist", "0123456789")
+                                                       Tesseract.EngineMode.Default)
+                ' Aggiunto il punto alla whitelist
+                engine.SetVariable("tessedit_char_whitelist", "0123456789.")
                 engine.SetVariable("classify_bln_numeric_mode", "1")
 
                 Using pix = Tesseract.Pix.LoadFromFile(tempFile)
 
                     Dim modes() As Tesseract.PageSegMode = {
-                        Tesseract.PageSegMode.SingleChar,
-                        Tesseract.PageSegMode.SingleWord,
-                        Tesseract.PageSegMode.SingleBlock
-                    }
+                    Tesseract.PageSegMode.SingleChar,
+                    Tesseract.PageSegMode.SingleWord,
+                    Tesseract.PageSegMode.SingleBlock
+                }
 
                     For Each mode As Tesseract.PageSegMode In modes
                         Using page = engine.Process(pix, mode)
                             Dim conf As Single = page.GetMeanConfidence()
                             Dim txt As String = page.GetText()
                             If txt IsNot Nothing Then
-                                Dim digits As String =
-                                    New String(txt.Trim().Where(Function(ch) Char.IsDigit(ch)).ToArray())
-                                If digits.Length > 0 AndAlso conf > confidence Then
-                                    Dim candidate As String = digits.Substring(0, Math.Min(2, digits.Length))
-                                    Dim num As Integer
-                                    If Integer.TryParse(candidate, num) AndAlso num >= 1 AndAlso num <= 99 Then
+                                ' Estrai cifre e punti, rimuovi spazi/newline
+                                Dim cleaned As String =
+                                New String(txt.Trim().Where(
+                                    Function(ch) Char.IsDigit(ch) OrElse ch = "."c
+                                ).ToArray())
+
+                                ' Valida formato: deve essere N o N.N o N.NN
+                                If cleaned.Length > 0 AndAlso conf > confidence Then
+                                    ' Verifica che sia un numero valido tipo "1.0", "5.11", "10"
+                                    Dim parts = cleaned.Split("."c)
+                                    Dim valido As Boolean = False
+                                    If parts.Length = 1 AndAlso parts(0).Length >= 1 Then
+                                        valido = True  ' es. "10"
+                                    ElseIf parts.Length = 2 AndAlso parts(0).Length >= 1 AndAlso parts(1).Length >= 1 Then
+                                        valido = True  ' es. "1.0", "5.11"
+                                    End If
+
+                                    If valido Then
                                         confidence = conf
-                                        result = num.ToString()
+                                        result = cleaned
                                     End If
                                 End If
                             End If
@@ -751,6 +851,181 @@ Public Class Form1
         End Try
     End Sub
 
+
+    ' ══════════════════════════════════════════════════════════
+    '  GENERAZIONE XPIF JOB TICKET
+    ' ══════════════════════════════════════════════════════════
+
+    ''' <summary>
+    ''' Converte millimetri in unità XPIF (1/100 di pollice).
+    ''' </summary>
+    Private Function MmToXpif(mm As Double) As Integer
+        Return CInt(mm * 100.0 / 25.4)
+    End Function
+
+    ''' <summary>
+    ''' Restituisce le dimensioni media-size XPIF in 1/100 di mm per un formato.
+    ''' A2/A1/A0 vengono mappati su A3 (stampa con zoom).
+    ''' I divisori usano 225x297mm.
+    ''' </summary>
+    Private Function GetMediaSize(dimensione As String, isDivisorio As Boolean) As (X As Integer, Y As Integer)
+        If isDivisorio Then Return (22500, 29700)
+        Select Case dimensione
+            Case "A0", "A1", "A2" : Return (29700, 42000)
+            Case "A3"             : Return (29700, 42000)
+            Case "A4"             : Return (21000, 29700)
+            Case "A5"             : Return (14800, 21000)
+            Case Else
+                Dim parts = dimensione.Replace(" mm", "").Split("x"c)
+                If parts.Length = 2 Then
+                    Dim w As Double, h As Double
+                    If Double.TryParse(parts(0).Trim(), w) AndAlso Double.TryParse(parts(1).Trim(), h) Then
+                        Return (CInt(w * 100), CInt(h * 100))
+                    End If
+                End If
+                Return (21000, 29700)
+        End Select
+    End Function
+
+    ''' <summary>
+    ''' Restituisce true se il formato richiede piega a Z (A3 e formati grandi).
+    ''' </summary>
+    Private Function RichiudePiega(dimensione As String, isDivisorio As Boolean) As Boolean
+        If isDivisorio Then Return False
+        Return dimensione = "A3" OrElse dimensione = "A2" OrElse
+               dimensione = "A1" OrElse dimensione = "A0"
+    End Function
+
+    ''' <summary>
+    ''' Restituisce true se il formato richiede riduzione su A3 (A2, A1, A0).
+    ''' </summary>
+    Private Function RichiedeZoom(dimensione As String) As Boolean
+        Return dimensione = "A2" OrElse dimensione = "A1" OrElse dimensione = "A0"
+    End Function
+
+    ''' <summary>
+    ''' Genera il file XPIF job ticket leggendo tutti i dati dalla griglia.
+    ''' Un unico file con page-overrides per ogni pagina.
+    ''' Regole:
+    '''   A4          → A4, BN/Colore da griglia, no piega
+    '''   A3          → A3, BN/Colore da griglia, piega Z
+    '''   A2/A1/A0    → A3 con zoom, BN/Colore da griglia, piega Z
+    '''   Divisorio   → 225x297mm, monochrome, shift +15mm destra
+    '''   Fuori formato → dimensioni reali, BN/Colore da griglia, no piega
+    ''' </summary>
+    Private Sub btnGeneraXpif_Click(sender As Object, e As EventArgs) Handles btnGeneraXpif.Click
+
+        If String.IsNullOrEmpty(PdfPath) Then
+            MessageBox.Show("Carica prima un PDF.", "Attenzione",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        If dgvReport.Rows.Count = 0 Then
+            MessageBox.Show("Nessuna pagina in griglia.", "Attenzione",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim outPath As String = System.IO.Path.Combine(
+            System.IO.Path.GetDirectoryName(PdfPath),
+            System.IO.Path.GetFileNameWithoutExtension(PdfPath) & ".xpif")
+
+        Try
+            Dim sb As New System.Text.StringBuilder()
+
+            ' Intestazione XML
+            sb.AppendLine("<?xml version=""1.0"" encoding=""UTF-8""?>")
+            sb.AppendLine("<!DOCTYPE xpif SYSTEM ""xpif-v2000.dtd"">")
+            sb.AppendLine("<xpif version=""1.0"" cpss-version=""2.0"" xml:lang=""en"">")
+            sb.AppendLine()
+
+            ' Attributi operazione
+            Dim jobName As String = System.IO.Path.GetFileNameWithoutExtension(PdfPath)
+            sb.AppendLine("  <xpif-operation-attributes>")
+            sb.AppendLine($"    <job-name syntax=""name"" xml:space=""preserve"">{jobName}</job-name>")
+            sb.AppendLine("  </xpif-operation-attributes>")
+            sb.AppendLine()
+
+            ' Job template
+            sb.AppendLine("  <job-template-attributes>")
+            sb.AppendLine()
+            sb.AppendLine("    <page-overrides syntax=""1setOf"">")
+            sb.AppendLine()
+
+            For Each row As DataGridViewRow In dgvReport.Rows
+
+                Dim pageNum As Integer = row.Index + 1
+                Dim dimensione As String = If(row.Cells("colDimensione").Value?.ToString(), "")
+                Dim colore As String = If(row.Cells("colBNColore").Value?.ToString(), "BN")
+                Dim divisorio As String = If(row.Cells("colDivisorio").Value?.ToString(), "")
+
+                Dim isDivisorio As Boolean = (divisorio <> "" AndAlso divisorio <> "ERR")
+                Dim mediaSize = GetMediaSize(dimensione, isDivisorio)
+                Dim piega As Boolean = RichiudePiega(dimensione, isDivisorio)
+                Dim zoom As Boolean = RichiedeZoom(dimensione) AndAlso Not isDivisorio
+                Dim colorEffect As String = If(isDivisorio OrElse colore = "BN", "monochrome", "full-color")
+
+                sb.AppendLine($"      <value syntax=""collection"">")
+                sb.AppendLine($"        <input-documents syntax=""1setOf"">")
+                sb.AppendLine($"          <value syntax=""rangeOfInteger"">")
+                sb.AppendLine($"            <lower-bound syntax=""integer"">1</lower-bound>")
+                sb.AppendLine($"            <upper-bound syntax=""integer"">1</upper-bound>")
+                sb.AppendLine($"          </value>")
+                sb.AppendLine($"        </input-documents>")
+                sb.AppendLine($"        <pages syntax=""1setOf"">")
+                sb.AppendLine($"          <value syntax=""rangeOfInteger"">")
+                sb.AppendLine($"            <lower-bound syntax=""integer"">{pageNum}</lower-bound>")
+                sb.AppendLine($"            <upper-bound syntax=""integer"">{pageNum}</upper-bound>")
+                sb.AppendLine($"          </value>")
+                sb.AppendLine($"        </pages>")
+                sb.AppendLine($"        <media-col syntax=""collection"">")
+                sb.AppendLine($"          <media-size syntax=""collection"">")
+                sb.AppendLine($"            <x-dimension syntax=""integer"">{mediaSize.X}</x-dimension>")
+                sb.AppendLine($"            <y-dimension syntax=""integer"">{mediaSize.Y}</y-dimension>")
+                sb.AppendLine($"          </media-size>")
+                sb.AppendLine($"        </media-col>")
+                sb.AppendLine($"        <color-effects-type syntax=""keyword"">{colorEffect}</color-effects-type>")
+
+                If zoom Then
+                    sb.AppendLine($"        <x-auto-scale syntax=""keyword"">fit-to-page</x-auto-scale>")
+                End If
+
+                If piega Then
+                    sb.AppendLine($"        <finishings-col syntax=""collection"">")
+                    sb.AppendLine($"          <finishing-template syntax=""keyword"">fold-z</finishing-template>")
+                    sb.AppendLine($"        </finishings-col>")
+                End If
+
+                If isDivisorio Then
+                    Dim shiftUnits As Integer = MmToXpif(15.0)
+                    sb.AppendLine($"        <x-side1-image-shift syntax=""integer"">{shiftUnits}</x-side1-image-shift>")
+                End If
+
+                sb.AppendLine($"      </value>")
+                sb.AppendLine()
+
+            Next
+
+            sb.AppendLine("    </page-overrides>")
+            sb.AppendLine()
+            sb.AppendLine("  </job-template-attributes>")
+            sb.AppendLine()
+            sb.AppendLine("</xpif>")
+
+            File.WriteAllText(outPath, sb.ToString(), System.Text.Encoding.UTF8)
+
+            MessageBox.Show($"File XPIF salvato:{Environment.NewLine}{outPath}",
+                            "Completato", MessageBoxButtons.OK, MessageBoxIcon.Information)
+
+        Catch ex As Exception
+            MessageBox.Show("Errore durante la generazione XPIF:" &
+                            Environment.NewLine & ex.ToString(),
+                            "Errore", MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
+
+    End Sub
+
     ' ══════════════════════════════════════════════════════════
     '  BOOKMARK PDF
     ' ══════════════════════════════════════════════════════════
@@ -764,48 +1039,97 @@ Public Class Form1
 
         If String.IsNullOrEmpty(PdfPath) Then
             MessageBox.Show("Carica prima un PDF.", "Attenzione",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 
-        ' Raccoglie i divisori dalla griglia: pagina (1-based) e numero
-        Dim divisori As New List(Of (Pagina As Integer, Numero As String))
+        If String.IsNullOrEmpty(txtIndicePath.Text) OrElse Not File.Exists(txtIndicePath.Text) Then
+            MessageBox.Show("Seleziona prima il file indice.", "Attenzione",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
 
+        ' Carica indice dal file
+        Dim indice = CaricaIndice(txtIndicePath.Text)
+        If indice.Count = 0 Then
+            MessageBox.Show("Il file indice è vuoto o non valido.", "Attenzione",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        ' Raccoglie i divisori dalla griglia: numero → pagina (1-based)
+        Dim divisoriPagina As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
         For Each row As DataGridViewRow In dgvReport.Rows
             Dim div As String = If(row.Cells("colDivisorio").Value?.ToString(), "")
             If div <> "" AndAlso div <> "DIV" AndAlso div <> "ERR" Then
-                divisori.Add((row.Index + 1, div))
+                If Not divisoriPagina.ContainsKey(div) Then
+                    divisoriPagina.Add(div, row.Index + 1)
+                End If
             End If
         Next
 
-        If divisori.Count = 0 Then
+        If divisoriPagina.Count = 0 Then
             MessageBox.Show("Nessun divisorio trovato nella griglia.", "Attenzione",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 
         ' Percorso file output
-        Dim outPath As String = System.IO.Path.Combine(
-        System.IO.Path.GetDirectoryName(PdfPath),
-        System.IO.Path.GetFileNameWithoutExtension(PdfPath) & "_bookmarks.pdf")
+        Dim outPath As String = IO.Path.Combine(
+        IO.Path.GetDirectoryName(PdfPath),
+        IO.Path.GetFileNameWithoutExtension(PdfPath) & "_bookmarks.pdf")
 
         Try
             Using reader As New iText.Kernel.Pdf.PdfReader(PdfPath)
                 Using writer As New iText.Kernel.Pdf.PdfWriter(outPath)
                     Using pdfDoc As New iText.Kernel.Pdf.PdfDocument(reader, writer,
-                          New iText.Kernel.Pdf.StampingProperties().UseAppendMode())
+                      New iText.Kernel.Pdf.StampingProperties().UseAppendMode())
 
-                        Dim outline = pdfDoc.GetOutlines(False)
+                        Dim rootOutline = pdfDoc.GetOutlines(False)
 
-                        ' Ordina per numero divisorio
-                        divisori = divisori.OrderBy(Function(d) CInt(d.Numero)).ToList()
+                        ' Dizionario per tenere traccia dei bookmark padre già creati
+                        ' chiave = numero (es. "2.0"), valore = oggetto outline
+                        Dim outlineMap As New Dictionary(Of String, PdfOutline)(
+                        StringComparer.OrdinalIgnoreCase)
 
-                        For Each div In divisori
-                            Dim titolo As String = $"Divisorio {div.Numero}"
-                            Dim child = outline.AddOutline(titolo)
-                            child.AddDestination(
-                            iText.Kernel.Pdf.Navigation.PdfExplicitDestination.
-                            CreateFit(pdfDoc.GetPage(div.Pagina)))
+                        For Each voce In indice
+                            Dim numero = voce.Numero
+                            Dim desc = voce.Descrizione
+                            Dim livello = GetLivello(numero)
+
+                            ' Cerca la pagina corrispondente nel PDF
+                            Dim pagina As Integer = -1
+                            divisoriPagina.TryGetValue(numero, pagina)
+
+                            ' Determina il parent outline
+                            Dim parentOutline As PdfOutline
+                            If livello = 1 Then
+                                ' Padre → attacca alla root
+                                parentOutline = rootOutline
+                            Else
+                                ' Figlio → cerca il padre nel dizionario
+                                Dim numeropadre = GetPadre(numero)
+                                If outlineMap.ContainsKey(numeropadre) Then
+                                    parentOutline = outlineMap(numeropadre)
+                                Else
+                                    ' Padre non trovato, attacca alla root
+                                    parentOutline = rootOutline
+                                End If
+                            End If
+
+                            ' Crea il bookmark
+                            Dim child = parentOutline.AddOutline(desc)
+
+                            ' Collega alla pagina se trovata, altrimenti bookmark senza destinazione
+                            If pagina > 0 AndAlso pagina <= pdfDoc.GetNumberOfPages() Then
+                                child.AddDestination(
+                                iText.Kernel.Pdf.Navigation.PdfExplicitDestination.
+                                CreateFit(pdfDoc.GetPage(pagina)))
+                            End If
+
+                            ' Registra nel dizionario per eventuali figli
+                            outlineMap(numero) = child
+
                         Next
 
                     End Using
@@ -813,15 +1137,61 @@ Public Class Form1
             End Using
 
             MessageBox.Show($"File salvato:{Environment.NewLine}{outPath}",
-                        "Completato", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    "Completato", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
         Catch ex As Exception
             MessageBox.Show("Errore durante la creazione dei bookmark:" &
-                        Environment.NewLine & ex.ToString(),
-                        "Errore", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    Environment.NewLine & ex.ToString(),
+                    "Errore", MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
 
     End Sub
+
+    'Bottone carico indice
+    Private Sub btnSfogliaIndice_Click(sender As Object, e As EventArgs) Handles btnSfogliaIndice.Click
+        Using ofd As New OpenFileDialog()
+            ofd.Title = "Seleziona file indice"
+            ofd.Filter = "File di testo (*.txt)|*.txt|Tutti i file (*.*)|*.*"
+            If ofd.ShowDialog() = DialogResult.OK Then
+                txtIndicePath.Text = ofd.FileName
+                _indiceBookmark = CaricaIndice(ofd.FileName)
+            End If
+        End Using
+    End Sub
+
+    'Funzione che legge
+    Private Function CaricaIndice(path As String) As List(Of (Numero As String, Descrizione As String))
+        Dim result As New List(Of (Numero As String, Descrizione As String))
+        If Not File.Exists(path) Then Return result
+
+        For Each line As String In File.ReadAllLines(path)
+            Dim trimmed = line.Trim()
+            If String.IsNullOrEmpty(trimmed) Then Continue For
+            Dim parts = trimmed.Split(";"c)
+            If parts.Length >= 2 Then
+                Dim numero = parts(0).Trim()
+                Dim desc = parts(1).Trim()
+                result.Add((numero, desc))
+            End If
+        Next
+        Return result
+    End Function
+
+    Private Function GetLivello(numero As String) As Integer
+        ' "1.0" → 1 parte prima del punto → padre
+        ' "1.0.0" → 2 parti dopo il primo punto → figlio
+        Dim parts = numero.Split("."c)
+        Return parts.Length - 1  ' 1.0=1, 1.0.0=2, 1.0.0.0=3
+    End Function
+
+    Private Function GetPadre(numero As String) As String
+        ' "2.0.1" → padre è "2.0"
+        Dim idx = numero.LastIndexOf("."c)
+        If idx <= 0 Then Return ""
+        Return numero.Substring(0, idx)
+    End Function
+
+
 
 End Class
 
