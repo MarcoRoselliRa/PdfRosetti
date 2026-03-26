@@ -101,7 +101,7 @@ Partial Class Form1
         ' 
         ' btnSfogliaIndice
         ' 
-        btnSfogliaIndice.Location = New Point(1029, 32)
+        btnSfogliaIndice.Location = New Point(411, 32)
         btnSfogliaIndice.Name = "btnSfogliaIndice"
         btnSfogliaIndice.Size = New Size(114, 42)
         btnSfogliaIndice.TabIndex = 8
@@ -110,9 +110,9 @@ Partial Class Form1
         ' 
         ' txtIndicePath
         ' 
-        txtIndicePath.Location = New Point(645, 38)
+        txtIndicePath.Location = New Point(531, 35)
         txtIndicePath.Name = "txtIndicePath"
-        txtIndicePath.Size = New Size(260, 39)
+        txtIndicePath.Size = New Size(660, 39)
         txtIndicePath.TabIndex = 9
         ' 
         ' Form1
