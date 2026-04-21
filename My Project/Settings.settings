@@ -5,5 +5,26 @@
     <Setting Name="IndicePath" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
+    <Setting Name="NomeCartaA4" Type="System.String" Scope="User">
+      <Value Profile="(Default)">A4 Standard</Value>
+    </Setting>
+    <Setting Name="NomeCartaA3" Type="System.String" Scope="User">
+      <Value Profile="(Default)">A3 Standard</Value>
+    </Setting>
+    <Setting Name="NomeCartaDivisorio" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Divisorio</Value>
+    </Setting>
+    <Setting Name="PercorsoStampante1" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="PercorsoStampante2" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="MostraVociSenzaDivisorio" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="PuntaDopoDiv" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

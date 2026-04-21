@@ -65,6 +65,90 @@ Namespace My
                 Me("IndicePath") = value
             End Set
         End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("A4 Standard")>  _
+        Public Property NomeCartaA4() As String
+            Get
+                Return CType(Me("NomeCartaA4"),String)
+            End Get
+            Set
+                Me("NomeCartaA4") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("A3 Standard")>  _
+        Public Property NomeCartaA3() As String
+            Get
+                Return CType(Me("NomeCartaA3"),String)
+            End Get
+            Set
+                Me("NomeCartaA3") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("Divisorio")>  _
+        Public Property NomeCartaDivisorio() As String
+            Get
+                Return CType(Me("NomeCartaDivisorio"),String)
+            End Get
+            Set
+                Me("NomeCartaDivisorio") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("")>  _
+        Public Property PercorsoStampante1() As String
+            Get
+                Return CType(Me("PercorsoStampante1"),String)
+            End Get
+            Set
+                Me("PercorsoStampante1") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("")>  _
+        Public Property PercorsoStampante2() As String
+            Get
+                Return CType(Me("PercorsoStampante2"),String)
+            End Get
+            Set
+                Me("PercorsoStampante2") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("False")>  _
+        Public Property MostraVociSenzaDivisorio() As Boolean
+            Get
+                Return CType(Me("MostraVociSenzaDivisorio"),Boolean)
+            End Get
+            Set
+                Me("MostraVociSenzaDivisorio") = value
+            End Set
+        End Property
+        
+        <Global.System.Configuration.UserScopedSettingAttribute(),  _
+         Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
+         Global.System.Configuration.DefaultSettingValueAttribute("False")>  _
+        Public Property PuntaDopoDiv() As Boolean
+            Get
+                Return CType(Me("PuntaDopoDiv"),Boolean)
+            End Get
+            Set
+                Me("PuntaDopoDiv") = value
+            End Set
+        End Property
     End Class
 End Namespace
 
